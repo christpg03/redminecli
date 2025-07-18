@@ -1,5 +1,5 @@
 import click
-from datetime import datetime
+from datetime import datetime, timedelta
 from redminelib import Redmine
 from redminelib.exceptions import ResourceNotFoundError, AuthError
 
@@ -34,6 +34,8 @@ def cli():
     - log: Log time worked on a specific issue
     - time-entries: View logged time entries
     - activities: List available activities for time logging
+    - projects: List available projects with their IDs
+    - daily: Create daily tasks for a specific team
 
     Example:
         $ redminecli config --url https://redmine.example.com --key your_api_key
@@ -443,6 +445,60 @@ def list_activities():
         click.echo(f"Error fetching activities: {str(e)}")
 
 
+@cli.command("projects")
+def list_projects():
+    """
+    List all available projects.
+
+    This command displays all projects available in the Redmine instance
+    with their ID and name. This is useful to see what project IDs are
+    available for use with other commands like 'daily'.
+
+    Returns:
+        None: Outputs available projects to stdout
+
+    Raises:
+        AuthError: If authentication fails
+        ConnectionError: If connection to Redmine fails
+
+    Example:
+        $ redminecli projects
+        Available projects:
+        1: Project Alpha
+        2: Project Beta
+        3: Internal Tools
+        4: Documentation
+
+    Note:
+        - Shows all projects visible to the current user
+        - Project IDs can be used with other commands that require project-id parameter
+        - Only shows projects where the user has at least view permissions
+    """
+    redmine: Redmine = RedmineInstance.get_instance()
+
+    try:
+        # Get all available projects
+        projects = redmine.project.all()
+
+        if not projects:
+            click.echo("No projects found.")
+        else:
+            click.echo("Available projects:")
+            for project in projects:
+                click.echo(f"{project.id}: {project.name}")
+
+    except AuthError as e:
+        click.echo(f"Error: Authentication failed - {str(e)}")
+    except ConnectionError as e:
+        click.echo(f"Error: Connection failed - {str(e)}")
+    except ResourceNotFoundError as e:
+        click.echo(f"Error fetching projects: {str(e)}")
+    except TypeError as e:
+        click.echo(f"Error fetching projects: {str(e)}")
+    except ValueError as e:
+        click.echo(f"Error fetching projects: {str(e)}")
+
+
 @cli.command("start")
 @click.option(
     "--issue-id",
@@ -705,3 +761,183 @@ def timer_status():
         click.echo(f"Started at: {formatted_start}")
         click.echo(f"Elapsed time: {elapsed_hours:.2f} hours")
         click.echo(f"(Could not fetch issue details: {str(e)})")
+
+
+@cli.command("daily")
+@click.option(
+    "--project-id",
+    prompt="Project ID",
+    type=int,
+    help="ID of the project where daily tasks will be created.",
+)
+@click.option(
+    "--team",
+    prompt="Team name",
+    type=str,
+    help="Team name for creating daily tasks.",
+)
+@click.option(
+    "--start-date",
+    type=click.DateTime(formats=["%d-%m-%Y"]),
+    help="Start date (DD-MM-YYYY format). If not specified, uses current date.",
+)
+@click.option(
+    "--end-date",
+    type=click.DateTime(formats=["%d-%m-%Y"]),
+    help="End date (DD-MM-YYYY format). If specified, creates tasks for the date range.",
+)
+def daily(
+    team: str, start_date: datetime | None, end_date: datetime | None, project_id: int
+):
+    """
+    Create daily tasks for a specific team.
+
+    This command creates daily tasks with the format [Daily][Team] DD-MM-YYYY.
+    It can create a single task for a specific date or multiple tasks
+    for a date range.
+
+    Args:
+        team (str): Team name for creating the tasks
+        start_date (datetime): Start date for creating tasks (optional)
+        end_date (datetime): End date for creating a range of tasks (optional)
+        project_id (int): ID of the project where tasks will be created
+
+    Returns:
+        None: Outputs confirmation messages to stdout
+
+    Raises:
+        ResourceNotFoundError: If the project doesn't exist
+        AuthError: If authentication fails
+        ValueError: If there's an error with date parameters
+
+    Example:
+        # Create task for today
+        $ redminecli daily --team "Backend" --project-id 1
+
+        # Create task for specific date
+        $ redminecli daily --team "Frontend" --start-date 15-07-2025 --project-id 1
+
+        # Create tasks for date range
+        $ redminecli daily --team "QA" --start-date 15-07-2025 --end-date 19-07-2025 --project-id 1
+
+    Note:
+        - If start-date is not specified, uses current date
+        - If end-date is specified, start-date must also be specified
+        - Dates must be in DD-MM-YYYY format
+        - One task is created for each day in the specified range
+        - Tasks are created with start and due dates corresponding to their day
+    """
+    redmine: Redmine = RedmineInstance.get_instance()
+
+    try:
+        # Verify the project exists
+        project = redmine.project.get(project_id)
+
+        # Ask for dates if not provided
+        if start_date is None:
+            start_date_input = click.prompt(
+                "Start date (DD-MM-YYYY) or press Enter for today",
+                default="",
+                show_default=False,
+            )
+            if start_date_input == "":
+                start_date = datetime.now()
+            else:
+                try:
+                    start_date = datetime.strptime(start_date_input, "%d-%m-%Y")
+                except ValueError:
+                    click.echo("Invalid date format. Please use DD-MM-YYYY format.")
+                    return
+
+        if end_date is None:
+            end_date_input = click.prompt(
+                "End date (DD-MM-YYYY) or press Enter for single day",
+                default="",
+                show_default=False,
+            )
+            if end_date_input != "":
+                try:
+                    end_date = datetime.strptime(end_date_input, "%d-%m-%Y")
+                except ValueError:
+                    click.echo("Invalid date format. Please use DD-MM-YYYY format.")
+                    return
+
+        # Determine dates to process
+        if end_date is not None and end_date < start_date:
+            click.echo("Error: End date cannot be earlier than start date.")
+            return
+
+        # Create list of dates to process
+        dates_to_process = []
+
+        if end_date is None:
+            # Only one date
+            dates_to_process.append(start_date)
+        else:
+            # Date range
+            current_date = start_date
+            while current_date <= end_date:
+                dates_to_process.append(current_date)
+                current_date += timedelta(days=1)
+
+        # Create tasks for each date
+        created_tasks = []
+
+        for date in dates_to_process:
+            # Format date for title
+            formatted_date = date.strftime("%d-%m-%Y")
+
+            # Create task title
+            task_title = f"[Daily][{team}] {formatted_date}"
+
+            # Format date for Redmine (YYYY-MM-DD)
+            redmine_date = date.strftime("%Y-%m-%d")
+
+            # Prepare task data
+            issue_data = {
+                "project_id": project_id,
+                "subject": task_title,
+                "start_date": redmine_date,
+                "due_date": redmine_date,
+                "description": f"Daily task for team {team} on {formatted_date}",
+            }
+
+            try:
+                # Create the task
+                issue = redmine.issue.create(**issue_data)
+                created_tasks.append(
+                    {"id": issue.id, "title": task_title, "date": formatted_date}
+                )
+
+            except Exception as e:
+                click.echo(f"Error creating task for {formatted_date}: {str(e)}")
+                continue
+
+        # Show results
+        if created_tasks:
+            click.echo(f"\n{len(created_tasks)} task(s) created successfully:")
+            for task in created_tasks:
+                click.echo(f"- Task #{task['id']}: {task['title']}")
+
+            click.echo(f"\nProject: {project.name}")
+            click.echo(f"Team: {team}")
+
+            if len(dates_to_process) == 1:
+                click.echo(f"Date: {dates_to_process[0].strftime('%d-%m-%Y')}")
+            elif end_date is not None:
+                click.echo(
+                    f"Range: {start_date.strftime('%d-%m-%Y')} to {end_date.strftime('%d-%m-%Y')}"
+                )
+        else:
+            click.echo("No tasks could be created.")
+
+    except ResourceNotFoundError:
+        click.echo(f"Error: Project #{project_id} not found.")
+    except AuthError as e:
+        click.echo(f"Error: Authentication failed - {str(e)}")
+    except ValueError as e:
+        click.echo(f"Error: Invalid parameters - {str(e)}")
+    except ConnectionError as e:
+        click.echo(f"Error: Connection failed - {str(e)}")
+    except Exception as e:
+        click.echo(f"Unexpected error: {str(e)}")
