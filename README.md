@@ -9,7 +9,9 @@ A powerful command-line interface for interacting with Redmine project managemen
 - ⏱️ **Time Tracking**: Built-in timer with automatic time logging
 - 📊 **Time Entries**: View and manage your logged time entries
 - 🎯 **Activity Management**: List and use available time entry activities
-- 🎨 **Colored Output**: Status-based color coding for better readability
+- �️ **Project Management**: List available projects with their IDs
+- 📅 **Daily Task Creation**: Create daily tasks for teams with date ranges
+- �🎨 **Colored Output**: Status-based color coding for better readability
 
 ## Installation
 
@@ -22,17 +24,20 @@ A powerful command-line interface for interacting with Redmine project managemen
 ### Install from Source
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/redminecli.git
 cd redminecli
 ```
 
 2. Install the package:
+
 ```bash
-pip install -e .
+pip install --user .
 ```
 
 ### Using pip (if published to PyPI)
+
 ```bash
 pip install redminecli
 ```
@@ -48,6 +53,7 @@ redmine config --url https://your-redmine-instance.com --key your_api_key
 ```
 
 You can also run the command without options to be prompted for the values:
+
 ```bash
 redmine config
 ```
@@ -55,6 +61,7 @@ redmine config
 ### 2. Verify Your Configuration
 
 Check your current configuration:
+
 ```bash
 redmine credentials
 ```
@@ -62,11 +69,13 @@ redmine credentials
 ### 3. List Your Tasks
 
 View all tasks assigned to you:
+
 ```bash
 redmine tasks
 ```
 
 Filter tasks by status:
+
 ```bash
 redmine tasks --status "In Progress"
 ```
@@ -76,6 +85,7 @@ redmine tasks --status "In Progress"
 ### Configuration Commands
 
 #### `redmine config`
+
 Configure your Redmine instance URL and API key.
 
 ```bash
@@ -83,10 +93,12 @@ redmine config --url https://redmine.example.com --key abc123def456
 ```
 
 **Options:**
+
 - `--url`: Your Redmine instance URL (including protocol)
 - `--key`: Your Redmine API key
 
 #### `redmine credentials`
+
 Display current configuration settings.
 
 ```bash
@@ -96,6 +108,7 @@ redmine credentials
 ### Task Management
 
 #### `redmine tasks`
+
 List all tasks assigned to you.
 
 ```bash
@@ -108,11 +121,13 @@ redmine tasks --status "In Progress"
 ```
 
 **Options:**
+
 - `--status`: Filter tasks by status name (case-insensitive)
 
 ### Time Tracking
 
 #### `redmine start`
+
 Start a timer for a specific issue.
 
 ```bash
@@ -120,11 +135,13 @@ redmine start --issue-id 123
 ```
 
 **Features:**
+
 - Only one timer can be active at a time
 - Starting a new timer automatically stops the previous one
 - Verifies that the issue exists before starting
 
 #### `redmine timer-status`
+
 Check the status of your current timer.
 
 ```bash
@@ -132,11 +149,13 @@ redmine timer-status
 ```
 
 **Output includes:**
+
 - Issue ID and title
 - Start time
 - Elapsed time
 
 #### `redmine stop`
+
 Stop the current timer and optionally log time to Redmine.
 
 ```bash
@@ -148,9 +167,11 @@ redmine stop --comment "Fixed the login bug"
 ```
 
 **Options:**
+
 - `--comment`, `-m`: Optional work description
 
 **Interactive prompts:**
+
 - Confirmation to log time to Redmine
 - Activity selection
 - Comment (if not provided via option)
@@ -158,6 +179,7 @@ redmine stop --comment "Fixed the login bug"
 ### Time Logging
 
 #### `redmine log`
+
 Manually log time for a specific issue.
 
 ```bash
@@ -165,12 +187,14 @@ redmine log --issue-id 123 --hours 2.5 --activity "Development" --comment "Fixed
 ```
 
 **Options:**
+
 - `--issue-id`: Issue ID to log time for (required)
 - `--hours`: Hours worked (decimal values supported, e.g., 2.5)
 - `--activity`: Activity name (e.g., "Development", "Testing")
 - `--comment`, `-m`: Work description (optional)
 
 #### `redmine time-entries`
+
 View your recent time entries.
 
 ```bash
@@ -185,41 +209,100 @@ redmine time-entries --limit 20
 ```
 
 **Options:**
+
 - `--issue-id`: Filter entries for specific issue
 - `--limit`: Number of entries to display (default: 10)
 
 #### `redmine activities`
+
 List all available time entry activities.
 
 ```bash
 redmine activities
 ```
 
+### Project Management
+
+#### `redmine projects`
+
+List all available projects with their IDs and names.
+
+```bash
+redmine projects
+```
+
+**Features:**
+
+- Displays all projects visible to the current user
+- Shows project IDs that can be used with other commands
+- Only shows projects where the user has at least view permissions
+
+#### `redmine daily`
+
+Create daily tasks for a specific team.
+
+```bash
+# Create task for today
+redmine daily --team "Backend" --project-id 1
+
+# Create task for specific date
+redmine daily --team "Frontend" --start-date 15-07-2025 --project-id 1
+
+# Create tasks for date range
+redmine daily --team "QA" --start-date 15-07-2025 --end-date 19-07-2025 --project-id 1
+```
+
+**Options:**
+
+- `--project-id`: ID of the project where daily tasks will be created (required)
+- `--team`: Team name for creating daily tasks (required)
+- `--start-date`: Start date in DD-MM-YYYY format (optional, defaults to today)
+- `--end-date`: End date in DD-MM-YYYY format (optional, creates date range if specified)
+
+**Features:**
+
+- Creates tasks with format `[Daily][Team] DD-MM-YYYY`
+- Sets both start and due dates to the task date
+- Can create single tasks or multiple tasks for a date range
+- Interactive prompts for missing parameters
+- Validates date formats and ranges
+
 ## Usage Examples
 
 ### Daily Workflow Example
 
-1. **Start your day by checking tasks:**
+1. **Check available projects (if needed):**
+
+```bash
+redmine projects
+```
+
+2. **Start your day by checking tasks:**
+
 ```bash
 redmine tasks --status "In Progress"
 ```
 
-2. **Start working on an issue:**
+3. **Start working on an issue:**
+
 ```bash
 redmine start --issue-id 123
 ```
 
-3. **Check your progress:**
+4. **Check your progress:**
+
 ```bash
 redmine timer-status
 ```
 
-4. **Stop and log your work:**
+5. **Stop and log your work:**
+
 ```bash
 redmine stop --comment "Implemented user authentication"
 ```
 
-5. **Review your logged time:**
+6. **Review your logged time:**
+
 ```bash
 redmine time-entries --limit 5
 ```
@@ -247,6 +330,24 @@ If you forgot to use the timer:
 
 ```bash
 redmine log --issue-id 123 --hours 3.5 --activity "Development" --comment "Refactored authentication module"
+```
+
+### Team Daily Tasks
+
+Create daily tasks for your team:
+
+```bash
+# First, check available projects
+redmine projects
+
+# Create a single daily task for today
+redmine daily --team "Backend Team" --project-id 1
+
+# Create daily tasks for a week
+redmine daily --team "Frontend Team" --project-id 2 --start-date 21-07-2025 --end-date 25-07-2025
+
+# Create task for specific date
+redmine daily --team "QA Team" --project-id 1 --start-date 22-07-2025
 ```
 
 ## Configuration
@@ -282,18 +383,21 @@ The CLI provides helpful error messages for common issues:
 ### Setting up Development Environment
 
 1. Clone the repository:
+
 ```bash
 git clone https://github.com/yourusername/redminecli.git
 cd redminecli
 ```
 
 2. Create a virtual environment:
+
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 ```
 
 3. Install in development mode:
+
 ```bash
 pip install -e ".[dev]"
 ```
@@ -347,6 +451,7 @@ If you encounter any issues or have questions:
 ## Changelog
 
 ### v0.1.0 (Initial Release)
+
 - Basic Redmine integration
 - Task listing and filtering
 - Time tracking with timer functionality
